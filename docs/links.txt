@@ -1,0 +1,6 @@
+https://thepihut.com/products/raspberry-pi-relay-board
+https://www.waveshare.com/wiki/RPi_Relay_Board
+
+ALS PT19 light sensor
+https://thepihut.com/products/adafruit-als-pt19-analog-light-sensor-breakout?variant=27740090513
+
