@@ -2,9 +2,11 @@
 
 #include <stdio.h>
 #include "pico/stdlib.h"
-#include "pico/cyw43_arch.h"
-
 #include "password.h"
+
+#ifdef HAVE_WIRELESS
+
+#include "pico/cyw43_arch.h"
 
 int connect(void)
 {
@@ -26,3 +28,12 @@ int connect(void)
 
     return 0;
 }
+
+#else
+
+int connect(void)
+{
+    printf("network: not supported\n");
+}
+
+#endif

@@ -7,14 +7,9 @@
 
 #include "network.h"
 
-// Pico W devices use a GPIO on the WIFI chip for the LED,
-// so when building for Pico W, CYW43_WL_GPIO_LED_PIN will be defined
-#include "pico/cyw43_arch.h"
-
 #define RELAY_GPIO 15
 #define PIR_GPIO 14
-
-volatile int relay_on = 0;
+#define LIGHT_SENSOR_GPIO 26 // has to be ADC capable
 
 int is_it_day(void)
 {
@@ -32,40 +27,62 @@ int main()
 {
     stdio_init_all();
     adc_init();
-    adc_gpio_init(26);
+    adc_gpio_init(LIGHT_SENSOR_GPIO);
     adc_select_input(0);
-
-    int rc = cyw43_arch_init();
-    hard_assert(rc == PICO_OK);
 
     gpio_init(RELAY_GPIO);
     gpio_set_dir(RELAY_GPIO, GPIO_OUT);
+    // default state is OFF (active low)
+    gpio_put(RELAY_GPIO, 1);
 
     gpio_init(PIR_GPIO);
     gpio_set_dir(PIR_GPIO, GPIO_IN);
     gpio_pull_down(PIR_GPIO);
 
+#if defined(PICO_DEFAULT_LED_PIN)
+    gpio_init(PICO_DEFAULT_LED_PIN);
+    gpio_set_dir(PICO_DEFAULT_LED_PIN, GPIO_OUT);
+    gpio_put(PICO_DEFAULT_LED_PIN, 1);
+#endif
+
     bi_decl(bi_program_description("This is a relay example"));
-    bi_decl(bi_1pin_with_name(CYW43_WL_GPIO_LED_PIN, "On-board LED"));
+    bi_decl(bi_1pin_with_name(PIR_GPIO, "PIR sensor polling"));
+    bi_decl(bi_1pin_with_name(RELAY_GPIO, "Relay control"));
+    bi_decl(bi_1pin_with_name(LIGHT_SENSOR_GPIO, "Light sensor measurement"));
 
     connect();
 
+    uint relay_state = 0;
+
     while (1) {
-        uint day = is_it_day();
-        uint pir = gpio_get(PIR_GPIO);
-        uint relay_on = !day && pir;
+        uint pir;
+        uint day;
 
-        if (relay_on) {
-            cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 1);
-            gpio_put(RELAY_GPIO, 0);
-        }
-        else {
-            cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 0);
-            gpio_put(RELAY_GPIO, 1);
-        }
-        sleep_ms(250);
+        if (!relay_state)
+        {
+            day = is_it_day();
+            pir = gpio_get(PIR_GPIO);
+            uint relay_on = !day && pir;
 
-        printf("relay state: %d day: %d pir:%d\n", relay_on, day, pir);
+            if (relay_on)
+            {
+                gpio_put(RELAY_GPIO, 0);
+                relay_state = 1;
+                printf("turn ON");
+            }
+        }
+        else { // relay is ON
+            pir = gpio_get(PIR_GPIO);
+
+            if (!pir)
+            {
+                gpio_put(RELAY_GPIO, 1);
+                relay_state = 0;
+                printf("turn OFF");
+            }
+        }
+
+        printf("relay state: %d day: %d pir:%d\n", relay_state, day, pir);
         sleep_ms(1000);
     }
 }
