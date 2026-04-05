@@ -1,6 +1,13 @@
 https://thepihut.com/products/raspberry-pi-relay-board
 https://www.waveshare.com/wiki/RPi_Relay_Board
+https://learn.adafruit.com/pir-passive-infrared-proximity-motion-sensor
 
 ALS PT19 light sensor
 https://thepihut.com/products/adafruit-als-pt19-analog-light-sensor-breakout?variant=27740090513
 
+Hall Sensor
+https://www.waveshare.com/wiki/Hall_Sensor
+
+
+
+https://learn.adafruit.com/radio-featherwing/using-the-rfm69-radio

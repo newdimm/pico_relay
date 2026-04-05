@@ -1,0 +1,5 @@
+/* Help Eclipse parse the code properly */
+
+#define HAVE_MQTT
+#define HAVE_WIRELESS
+#define HAVE_TELEGRAM
