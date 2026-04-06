@@ -10,6 +10,7 @@
 #include "network.h"
 
 #include "telegram.h"
+#include "json.h"
 
 #define TELEGRAM_SERVER "api.telegram.org"
 #define T_REQ "/bot" TELEGRAM_TOKEN "/"
@@ -62,16 +63,34 @@ static err_t internal_recv_fn(void *arg, struct altcp_pcb *conn, struct pbuf *p,
     assert(arg);
     telega_t *state = (telega_t *)arg;
 
-    printf("telega: body err=%d\n", err);
+    printf("telega: body err=%d len=%d\n", err, p ? p->tot_len : 0);
 
-    char * data = malloc(p->tot_len);
+    if (err != ERR_OK) {
+        return ERR_OK;
+    }
 
-    pbuf_copy_partial(p, data, p->tot_len, 0);
-    printf("telega: body data=<%s>\n", data);
+    char *data_str = malloc(p->tot_len + 1);
+
+    if (!data_str) {
+        printf("telega: failed to allocate %d bytes\n", p->tot_len);
+        return ERR_OK;
+    }
+
+    pbuf_copy_partial(p, data_str, p->tot_len, 0);
+    data_str[p->tot_len] = '\0';
+
+    printf("telega: body data=<%s>\n", data_str);
+
+    json_data_t *d = json_parse_data(data_str, p->tot_len + 1);
+
+    if (!d) {
+        printf("telega: failed to parse data\n");
+    }
+    else {
+        json_free_data(d);
+    }
     
-    free(data);
-
-    complete_request(state, 30000);
+    free(data_str);
 
     return ERR_OK;
 }
@@ -84,12 +103,14 @@ static err_t internal_header_fn(httpc_state_t *connection, void *arg, struct pbu
     printf("telega: header received, content length=%d header length=%d\n",
         content_len, hdr_len);
 
+#if 0
     char * data = malloc(hdr->tot_len);
 
     pbuf_copy_partial(hdr, data, hdr->tot_len, 0);
     printf("telega: header data=<%s>\n", data);
     
     free(data);
+#endif
 
     return ERR_OK;
  }
@@ -102,10 +123,10 @@ static void internal_result_fn(void *arg, httpc_result_t httpc_result, u32_t rx_
     telega_t *state = (telega_t *)arg;
     printf("telega: result %u len %u server_response %u err %d\n", httpc_result, rx_content_len, srv_res, err);
 
-    if (httpc_result != HTTPC_RESULT_OK)
-    {
-        complete_request(state, 10000);
-    }
+    int delay = 
+        (httpc_result == HTTPC_RESULT_OK) ? 30000 : 10000;
+
+    complete_request(state, delay);
 }
 
 
@@ -167,7 +188,9 @@ static void send_request(telega_t *state)
     
     async_context_release_lock(context);
 
-    printf("telega: httpc_get_file_dns: return %d\n", ret);
+    if (ret != ERR_OK) {
+        printf("telega: http request failed: %d\n", ret);
+    }
 }
 
 void telegram_periodic(void)

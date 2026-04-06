@@ -134,6 +134,8 @@ if (HAVE_TELEGRAM)
 
     target_sources(relay PRIVATE
         telegram.c
+        json.c
+        json.h
     )
 
     # Ignore warnings from lwip code
