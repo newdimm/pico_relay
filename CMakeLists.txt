@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 3.13)
 set(HAVE_WIRELESS 1)
 set(HAVE_MQTT 1)
 set(HAVE_TELEGRAM 1)
+set(HAVE_FLASH 1)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
@@ -86,6 +87,11 @@ if (HAVE_MQTT)
 
 endif()
 
+if (HAVE_FLASH)
+    add_compile_options(-DHAVE_FLASH)
+endif()
+    
+    
 include(pico_sdk_import.cmake)
 project(relay C CXX ASM)
 
@@ -105,6 +111,16 @@ target_include_directories(relay PRIVATE ${CMAKE_CURRENT_LIST_DIR} )
 target_link_libraries(relay pico_stdlib)
 target_link_libraries(relay pico_time)
 target_link_libraries(relay hardware_adc)
+
+if (HAVE_FLASH)
+    target_sources(relay PRIVATE
+        flash.c
+    )
+
+    target_link_libraries(relay 
+        hardware_flash
+    )
+endif()
 
 if (HAVE_WIRELESS)
 

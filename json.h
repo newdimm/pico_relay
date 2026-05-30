@@ -1,6 +1,8 @@
 #ifndef JSON_H
 #define JSON_H
 
+typedef unsigned int uint;
+
 typedef enum
 {
     JSON_STRING, // <"some string">
