@@ -20,7 +20,8 @@
  * }
 */
 
-#define dprintf printf
+//#define dprintf printf
+#define dprintf(...)
 
 json_data_t *json_parse_data(char *data_str, uint size)
 {
@@ -45,11 +46,11 @@ json_data_t *json_parse_data(char *data_str, uint size)
     p->name = "root";
     expect_value = true;
 
-    printf("<%s>\n", s);
+    dprintf("<%s>\n", s);
 
     while (result && *s != '\0')
     {
-        printf("[%d] == <%c>\n", pos, *s);
+        dprintf("[%d] == <%c>\n", pos, *s);
         if (skip) {
             skip = false;
         }

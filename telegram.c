@@ -15,7 +15,7 @@
 
 #define TELEGRAM_SERVER "api.telegram.org"
 #define T_REQ "/bot" TELEGRAM_TOKEN "/"
-#define T_UPDATE "https://" TELEGRAM_SERVER T_REQ "getUpdates?offset=%lld&limit=15"
+#define T_UPDATE "https://" TELEGRAM_SERVER T_REQ "getUpdates?offset=%llu&limit=15"
 
 typedef struct {
     bool init_done;
@@ -36,9 +36,35 @@ typedef struct {
     absolute_time_t retry_after;
 
     unsigned long long offset;
+
+    unsigned long content_len;
+    unsigned long content_off;
+    uint8_t *content;
 } telega_t;
 
 telega_t telega;
+
+bool telegram_read_offset(telega_t *state)
+{
+    const uint8_t *ptr = NULL;
+    uint32_t ret = fsdb_read(Fsdb_Telegram_Offset, &ptr);
+   
+    if (ret != sizeof(state->offset) || ptr == NULL)
+    {
+        return false;
+    }
+
+    memcpy((uint8_t *)&state->offset, ptr, sizeof(state->offset));
+    printf("telega: read offset 0x%llu\n", state->offset);
+
+    return true;
+}
+
+void telegram_store_offset(telega_t *state)
+{
+    printf("telega: store offset %llu\n", state->offset);
+    fsdb_write(Fsdb_Telegram_Offset, (uint8_t *)&state->offset, sizeof(state->offset));
+}
 
 void telegram_send(const char *message)
 {
@@ -72,29 +98,60 @@ static err_t internal_recv_fn(void *arg, struct altcp_pcb *conn, struct pbuf *p,
     if (err != ERR_OK) {
         return ERR_OK;
     }
-
-    char *data_str = malloc(p->tot_len + 1);
-
-    if (!data_str) {
-        printf("telega: failed to allocate %d bytes\n", p->tot_len);
+    
+    if (state->content == NULL)
+    {
+        printf("telega: body len %d drop the data\n");
+        state->content_off += p->tot_len;
         return ERR_OK;
     }
 
-    pbuf_copy_partial(p, data_str, p->tot_len, 0);
-    data_str[p->tot_len] = '\0';
-
-    printf("telega: body data=<%s>\n", data_str);
-
-    json_data_t *d = json_parse_data(data_str, p->tot_len + 1);
-
-    if (!d) {
-        printf("telega: failed to parse data\n");
+    if (state->content_off + p->tot_len > state->content_len)
+    {
+        printf("telega: body content off %d + tot_len %d = %d > len %d -> DROP",
+                state->content_off, p->tot_len, 
+                state->content_off + p->tot_len,
+                state->content_len);
+        return ERR_OK;
     }
-    else {
-        json_free_data(d);
-    }
+
+    pbuf_copy_partial(p, &state->content[state->content_off], p->tot_len, 0);
+
+    state->content[state->content_off + p->tot_len + 1] = '\0';
     
-    free(data_str);
+    //printf("telega: body data=<%s>\n", &state->content[state->content_off]);
+
+    state->content_off += p->tot_len;
+
+    if (state->content_off == state->content_len)
+    {
+        printf("telega: json data: %s\n", state->content);
+
+        json_data_t *d = json_parse_data(state->content, state->content_len);
+
+        if (!d) {
+            printf("telega: failed to parse data\n");
+        }
+        else {
+            json_data_t *e;
+            e = json_find(d, "update_id");
+            if (e && e->type == JSON_NUMBER)
+            {
+                state->offset = (unsigned long long)e->u.number;
+                printf("telega: update_id=%llu\n", state->offset);
+                state->offset += 1;
+                telegram_store_offset(state);
+            }
+
+            json_free_data(d);
+        }
+
+        free(state->content);
+        state->content = NULL;
+
+        state->content_len = 0;
+        state->content_off = 0;
+    }
 
     return ERR_OK;
 }
@@ -106,6 +163,22 @@ static err_t internal_header_fn(httpc_state_t *connection, void *arg, struct pbu
 
     printf("telega: header received, content length=%d header length=%d\n",
         content_len, hdr_len);
+
+    if (state->content)
+    {
+        printf("telega: free stale request\n");
+        free(state->content);
+        state->content = NULL;
+    }
+
+    state->content_len = content_len;
+    state->content_off = 0;
+    state->content = malloc(state->content_len+1);
+
+    if (state->content == NULL)
+    {
+        printf("telega: malloc(%d) failed, drop request\n", state->content_len+1);
+    }
 
 #if 0
     char * data = malloc(hdr->tot_len);
@@ -161,17 +234,11 @@ static void send_request(telega_t *state)
 
     if (!state->offset_init)
     {
-        const uint8_t *ptr;
-        if (fsdb_read(Fsdb_Telegram_Offset, &ptr) != sizeof(state->offset))
+        if (!telegram_read_offset(state))
         {
             printf("telega: no offset found, resetting to 0\n");
             state->offset = 0;
-            fsdb_write(Fsdb_Telegram_Offset, (uint8_t *)&state->offset, sizeof(state->offset));
-        }
-        else
-        {
-            memcpy((uint8_t *)&state->offset, ptr, sizeof(state->offset));
-            printf("telega: offset 0x%llu\n", state->offset);
+            telegram_store_offset(state);
         }
         state->offset_init = 1;
     }
@@ -194,6 +261,15 @@ static void send_request(telega_t *state)
         state->settings.headers_done_fn = internal_header_fn;
         state->settings.result_fn = internal_result_fn;
         state->settings.altcp_allocator = &state->tls_allocator;
+    }
+
+    if (state->content)
+    {
+        printf("telega: free stale request\n");
+        free(state->content);
+        state->content = NULL;
+        state->content_off = 0;
+        state->content_len = 0;
     }
 
     const uint16_t port = 443;

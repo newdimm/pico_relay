@@ -55,7 +55,7 @@ uint32_t fsdb_read(uint32_t key, const uint8_t **data_ptr)
     if (found)
     {
         *data_ptr = found->data;
-        return found->length;
+        return found->length - FSDB_ENTRY_HEADER_SIZE;
     }
 
     *data_ptr = NULL;
