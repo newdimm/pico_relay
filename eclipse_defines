@@ -3,3 +3,5 @@
 #define HAVE_MQTT
 #define HAVE_WIRELESS
 #define HAVE_TELEGRAM
+#define HAVE_FLASH
+#define HAVE_FSDB

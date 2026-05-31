@@ -11,6 +11,7 @@
 
 #include "telegram.h"
 #include "json.h"
+#include "fsdb.h"
 
 #define TELEGRAM_SERVER "api.telegram.org"
 #define T_REQ "/bot" TELEGRAM_TOKEN "/"
@@ -18,6 +19,7 @@
 
 typedef struct {
     bool init_done;
+    bool offset_init;
     bool request_pending;
     bool ready;
 
@@ -32,6 +34,8 @@ typedef struct {
     httpc_connection_t settings;
 
     absolute_time_t retry_after;
+
+    unsigned long long offset;
 } telega_t;
 
 telega_t telega;
@@ -155,12 +159,27 @@ static void send_request(telega_t *state)
     state->request_pending = true;
     state->retry_after = 0;
 
-    unsigned long long offset = 0;
+    if (!state->offset_init)
+    {
+        const uint8_t *ptr;
+        if (fsdb_read(Fsdb_Telegram_Offset, &ptr) != sizeof(state->offset))
+        {
+            printf("telega: no offset found, resetting to 0\n");
+            state->offset = 0;
+            fsdb_write(Fsdb_Telegram_Offset, (uint8_t *)&state->offset, sizeof(state->offset));
+        }
+        else
+        {
+            memcpy((uint8_t *)&state->offset, ptr, sizeof(state->offset));
+            printf("telega: offset 0x%llu\n", state->offset);
+        }
+        state->offset_init = 1;
+    }
 
     // offset is "unsigned long long" - that is 20 decimal digits
     state->url_len = sizeof(T_UPDATE) + 20;
     state->url = malloc(state->url_len);
-    snprintf(state->url, state->url_len, T_UPDATE, offset);
+    snprintf(state->url, state->url_len, T_UPDATE, state->offset);
     
     state->hostname = TELEGRAM_SERVER;
 
@@ -219,7 +238,7 @@ void telegram_periodic(void)
 void telegram_init()
 {
     printf("telegra: init\n");
-
+    telega.offset_init = 0;
     telega.init_done = 1;
 }
 

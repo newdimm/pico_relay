@@ -9,6 +9,7 @@
 #include "mqtt.h"
 #include "telegram.h"
 #include "flash.h"
+#include "fsdb.h"
 
 #define RELAY_GPIO 15
 #define PIR_GPIO 14
@@ -128,6 +129,7 @@ int main()
     mqtt_init();
     telegram_init();
     flash_init();
+    fsdb_init();
     
     relay_state.next_poll = get_absolute_time();
 

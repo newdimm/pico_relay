@@ -4,6 +4,7 @@ set(HAVE_WIRELESS 1)
 set(HAVE_MQTT 1)
 set(HAVE_TELEGRAM 1)
 set(HAVE_FLASH 1)
+set(HAVE_FSDB 1)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
@@ -91,6 +92,9 @@ if (HAVE_FLASH)
     add_compile_options(-DHAVE_FLASH)
 endif()
     
+if (HAVE_FSDB)
+    add_compile_options(-DHAVE_FSDB)
+endif()
     
 include(pico_sdk_import.cmake)
 project(relay C CXX ASM)
@@ -119,6 +123,12 @@ if (HAVE_FLASH)
 
     target_link_libraries(relay 
         hardware_flash
+    )
+endif()
+
+if (HAVE_FSDB)
+    target_sources(relay PRIVATE
+        fsdb.c
     )
 endif()
 
